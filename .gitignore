@@ -1,0 +1,32 @@
+# --- dependencies & build output ---
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.next/
+dist/
+build/
+.vercel/
+*.log
+
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+auth.json
+.firebaserc
+firebase.json
+firebase-debug.log
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+~$*
+
+# --- dataset (143MB) and trained artefacts ---
+data/raw/*.csv
+models/*.pkl
+logs/*.csv

@@ -1,0 +1,135 @@
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic_transactions: "transactions"
+  topic_results: "fraud_results"
+  group_id: "fraud_detection_group"
+  auto_offset_reset: "latest"
+
+model:
+  path: "models/fraud_model.pkl"
+  scaler_path: "models/scaler.pkl"
+  threshold_path: "models/threshold.json"
+  features:
+    - "Time"
+    - "Amount"
+    - "V1"
+    - "V2"
+    - "V3"
+    - "V4"
+    - "V5"
+    - "V6"
+    - "V7"
+    - "V8"
+    - "V9"
+    - "V10"
+    - "V11"
+    - "V12"
+    - "V13"
+    - "V14"
+    - "V15"
+    - "V16"
+    - "V17"
+    - "V18"
+    - "V19"
+    - "V20"
+    - "V21"
+    - "V22"
+    - "V23"
+    - "V24"
+    - "V25"
+    - "V26"
+    - "V27"
+    - "V28"
+
+training:
+  data_path: "data/raw/creditcard.csv"
+  test_size: 0.20
+  random_state: 42
+  # SMOTE removed — was causing low precision (~0.29)
+  # scale_pos_weight is now computed dynamically from true class ratio (~577)
+  smote: false
+  xgboost:
+    n_estimators: 500
+    max_depth: 6
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    # scale_pos_weight computed at runtime — do NOT set here
+    early_stopping_rounds: 30
+
+risk:
+  # Decision tiers (used by risk_scoring.py)
+  # ML confidence gate: if ml_prob < min_confidence_for_hard_action,
+  # max action is capped at SOFT_CHECK
+  min_confidence_for_hard_action: 0.05
+  thresholds:
+    low: 0.30
+    medium: 0.55
+    high: 0.75
+    very_high: 0.90
+  actions:
+    low: "ALLOW"
+    medium: "SOFT_CHECK"
+    high: "FREEZE_CARD"
+    very_high: "BLOCK_CARD"
+
+# Weighted scoring blend
+scoring:
+  ml_weight: 0.60
+  rules_weight: 0.40
+  rule_weights:
+    country: 0.35
+    merchant: 0.25
+    vendor: 0.20
+    behavior: 0.25
+    velocity: 0.35
+    network: 0.30
+    attack: 0.20
+
+velocity:
+  # Multi-window config (seconds, user_threshold, vendor_threshold)
+  windows:
+    - [60,   3,  15]    # 1 min
+    - [300,  8,  40]    # 5 min
+    - [3600, 20, 100]   # 1 hr
+  micro_txn_amount: 5.0    # card testing detection
+  micro_txn_count: 3
+
+user_behavior:
+  history_limit: 20
+  anomaly_multiplier: 5.0
+
+network:
+  cluster_threshold: 5
+
+logging:
+  log_file: "logs/transactions.csv"
+  encoding: "utf-8"
+  level: "INFO"
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+producer:
+  sleep_interval: 0.1
+  attack_sample_rate: 0.18
+  fraud_sample_rate: 0.08
+  attack_user_pool: 5
+  attack_vendor_pool: 3
+  countries:
+    - "IE"
+    - "UK"
+    - "FR"
+    - "DE"
+    - "US"
+    - "NG"
+    - "PK"
+    - "RU"
+  merchant_categories:
+    - "supermarket"
+    - "restaurant"
+    - "electronics"
+    - "gas_station"
+    - "travel"
+    - "online_marketplace"
