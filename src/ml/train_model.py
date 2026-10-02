@@ -19,8 +19,9 @@ KEY CHANGES FROM v1:
 
 4. EARLY STOPPING — prevents overfitting without hyperparameter sweeps.
 
-5. THREE-WAY SPLIT — train / calibration / test. Calibration set never
-   touches the base model training; test set never touches either.
+5. THREE-WAY SPLIT — train / calibration / test. The calibration split is
+   used for early stopping, isotonic calibration and threshold selection;
+   the test split is never touched until final evaluation.
 """
 
 import json

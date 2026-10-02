@@ -6,6 +6,30 @@ premium live dashboard.
 
 ---
 
+## Model results
+
+Held-out test set (56,962 transactions, 98 frauds, 0.17% fraud rate):
+
+| Metric | Value |
+|---|---|
+| ROC-AUC | 0.976 |
+| PR-AUC | 0.684 |
+| Precision @ threshold 0.80 | 0.78 |
+| Recall @ threshold 0.80 | 0.79 |
+| Confusion | 77 caught, 21 missed, 22 false alarms |
+
+**Modelling decisions**
+- **No SMOTE.** An earlier version combined SMOTE with class weighting, which double-corrected
+  the imbalance and dropped precision to ~0.29. The model now uses `scale_pos_weight`
+  set from the true class ratio (~577:1).
+- **Isotonic calibration** on a held-out calibration split, so probabilities reflect the real fraud rate.
+- **Precision-weighted threshold:** chosen by maximising F0.5 with a 70% recall floor, saved to
+  `models/threshold.json` and loaded at inference time.
+- **Leakage control:** the scaler is fit on the training split only; the test split is never used
+  for training, early stopping, calibration or threshold selection.
+
+---
+
 ## Architecture
 
 ```
@@ -114,18 +138,21 @@ This step must be completed before running the API or consumer.
 python -m src.ml.train_model
 ```
 
-Expected output:
+Expected output (abridged, from a real run on `creditcard.csv`):
 ```
-Loading dataset...          Dataset shape: (284807, 31)
-Validating dataset...
-Splitting data (test_size=0.20)...
-Fitting scaler on training data only...
-Applying SMOTE...
-Training XGBoost model...
-ROC-AUC  : 0.9790
-PR-AUC   : 0.8340
-Model saved to models/fraud_model.pkl
-Scaler saved to models/scaler.pkl
+Split: train=(199364, 30) | cal=(28481, 30) | test=(56962, 30)
+Scaler fit on training only -> models/scaler.pkl
+scale_pos_weight = 576.87  (199019 neg / 345 pos)
+Training XGBoost (SPW=576.9, early_stopping=30)...
+Calibrating with isotonic regression on held-out cal set...
+Optimal threshold=0.8000  F0.5=0.8295  (recall floor 70%)
+FINAL EVALUATION  (threshold=0.8000)
+ROC-AUC    : 0.9764
+PR-AUC     : 0.6839
+Precision  : 0.7778
+Recall     : 0.7857
+TP=77 FP=22 FN=21 TN=56842
+Model saved -> models/fraud_model.pkl
 ```
 
 ### 4. Start Kafka (Docker)
@@ -273,9 +300,14 @@ Services:
 | Score Range | Risk Level | Action |
 |-------------|------------|--------|
 | < 0.30 | LOW | ALLOW |
-| 0.30 – 0.60 | MEDIUM | NOTIFY |
-| 0.60 – 0.85 | HIGH | FREEZE_CARD |
-| ≥ 0.85 | VERY_HIGH | BLOCK_CARD |
+| 0.30 – 0.55 | MEDIUM | SOFT_CHECK (step-up auth) |
+| 0.55 – 0.75 | HIGH | REVIEW |
+| 0.75 – 0.90 | HIGH | FREEZE_CARD |
+| ≥ 0.90 | VERY_HIGH | BLOCK_CARD |
+
+Thresholds live in `config/config.yaml`. A confidence gate caps hard actions: if the
+ML probability is below `min_confidence_for_hard_action` (0.05), rules alone can only
+trigger SOFT_CHECK or REVIEW, never a freeze or block.
 
 **Score components (all additive, capped at 1.0):**
 
